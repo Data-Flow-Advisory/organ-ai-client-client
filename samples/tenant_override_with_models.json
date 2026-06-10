@@ -1,0 +1,19 @@
+{
+  "state": {
+    "app_config": {
+      "OPENROUTER_MODEL": "anthropic/claude-sonnet-4.6",
+      "OPENROUTER_API_KEY": "sk-or-REDACTED-example"
+    },
+    "tenant": {
+      "ai_model_id": "anthropic/claude-opus-4.7",
+      "ai_api_key": "tenant-REDACTED-key",
+      "ai_base_url": "https://tenant.example/api/v1"
+    },
+    "available_models": [
+      {"id": "openai/gpt-4o", "name": "GPT-4o", "context_length": 128000, "pricing": {"prompt": "0.0000025"}},
+      {"id": "anthropic/claude-sonnet-4.6", "name": "Claude Sonnet 4.6", "context_length": 200000, "pricing": {"prompt": "0.000003"}},
+      {"id": "cohere/command-r", "name": "Command R", "context_length": 128000, "pricing": {}},
+      {"id": "google/gemini-pro-1.5", "name": "Gemini Pro 1.5", "context_length": 1000000, "pricing": {}}
+    ]
+  }
+}
