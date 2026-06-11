@@ -1,0 +1,25 @@
+{
+  "organ": "organ-ai-client-client",
+  "source": "discovery-engine/lib/dataflow_core/ai_client/client.py",
+  "capability": "Pure AI-client config resolution: app-config + optional per-tenant override precedence, model id -> display-name mapping, and provider filter/sort of a handed-in model list. No side effects (the spine builds the openai.OpenAI client and fetches the model list).",
+  "ports": {
+    "inputs": {
+      "state.app_config": "required dict of OPENROUTER_*/ANTHROPIC_*/CLAUDE_MODEL keys (may be empty; defaults apply)",
+      "state.tenant": "optional per-tenant override (ai_model_id / ai_api_key / ai_base_url); non-empty values override app config",
+      "state.available_models": "optional raw provider model list; filtered + provider-ordered, never fetched here"
+    },
+    "outputs": {
+      "output.model_id": "resolved model id",
+      "output.base_url": "resolved base url",
+      "output.api_key_present": "bool (key value is redacted, never echoed)",
+      "output.model_display_name": "human-readable label",
+      "output.client_buildable": "bool — api_key present AND base_url set",
+      "output.config_source": "per-field provenance (tenant|app|default)",
+      "output.models": "filtered+sorted model list (only when available_models given)"
+    }
+  },
+  "_checked": {
+    "corpus_checked": "2026-06-11",
+    "oss_checked": "2026-06-11"
+  }
+}
