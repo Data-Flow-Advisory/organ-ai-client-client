@@ -210,6 +210,12 @@ def decide(state: dict, context: dict | None = None) -> dict:
         if models_out is not None:
             rationale += f"; filtered {models_filtered} allowed-provider model(s)"
 
+        config_source = {
+            "model_id": model_source,
+            "api_key": key_source,
+            "base_url": base_source,
+        }
+
         return {
             "output": {
                 "model_id": model_id,
@@ -217,12 +223,20 @@ def decide(state: dict, context: dict | None = None) -> dict:
                 "api_key_present": api_key_present,
                 "model_display_name": display_name,
                 "client_buildable": client_buildable,
-                "config_source": {
-                    "model_id": model_source,
-                    "api_key": key_source,
-                    "base_url": base_source,
-                },
+                "config_source": config_source,
                 "models": models_out,
+                # Additive vocab-shaped output port (type AIClientConfig in
+                # ports.json). It re-packages the resolved fields above into the
+                # single composite the connection standard wires on — no existing
+                # key is changed. Secrets stay presence-only.
+                "ai_client_config": {
+                    "model_id": model_id,
+                    "base_url": base_url,
+                    "api_key_present": api_key_present,
+                    "model_display_name": display_name,
+                    "client_buildable": client_buildable,
+                    "config_source": config_source,
+                },
             },
             "rationale": rationale,
             "self_metric": {
@@ -249,6 +263,19 @@ def decide(state: dict, context: dict | None = None) -> dict:
                     "base_url": "default",
                 },
                 "models": None,
+                # Additive AIClientConfig port — conservative fail-safe shape.
+                "ai_client_config": {
+                    "model_id": DEFAULT_MODEL,
+                    "base_url": DEFAULT_BASE_URL,
+                    "api_key_present": False,
+                    "model_display_name": _model_display_name(DEFAULT_MODEL),
+                    "client_buildable": False,
+                    "config_source": {
+                        "model_id": "default",
+                        "api_key": "default",
+                        "base_url": "default",
+                    },
+                },
             },
             "rationale": f"Decision logic error (fail-safe to not-buildable): {e}",
             "self_metric": {

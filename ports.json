@@ -1,0 +1,10 @@
+{
+  "_README": "Typed connection ports for this organ — the Lego studs. `name` is the literal key decide() reads under `state` (inputs) / writes under `output` (outputs); `type` is a name from the shared vocabulary (types.json). Two ports connect iff their `type` matches. See CONNECTORS.md.",
+  "_note_non_ports": "decide() also reads two NON-port inputs that carry no spine type: `app_config` (ambient process/env configuration — a config-knob bag, not an organ-to-organ wire) and `available_models` (an IO-fetched provider model catalogue — an edge/IO input fulfilled by the substrate's effect runner, no vocab type yet). They are deliberately not declared as ports to avoid vocabulary sprawl. The scalar output keys (model_id, base_url, api_key_present, model_display_name, client_buildable, config_source, models) are not individually ported — the vocabulary has no scalar types by design; the composite product is exposed via the `ai_client_config` output port instead.",
+  "inputs": [
+    {"name": "tenant", "type": "TenantContext", "required": false}
+  ],
+  "outputs": [
+    {"name": "ai_client_config", "type": "AIClientConfig"}
+  ]
+}

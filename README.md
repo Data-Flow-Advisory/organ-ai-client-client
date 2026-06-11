@@ -105,3 +105,41 @@ python3 -m pytest -v
 - `app_default_no_key.json` — empty config → defaults, not buildable.
 - `app_config_openrouter.json` — OpenRouter app config, buildable.
 - `tenant_override_with_models.json` — full tenant override + model list filter.
+
+## Connection ports (the Lego stud)
+
+Per the orchestrator [connection standard](https://github.com/Data-Flow-Advisory/orchestrator/blob/feat/drift-gate/CONNECTORS.md),
+`ports.json` declares this organ's typed inputs/outputs against the shared
+type vocabulary (`types.json`). Two ports connect iff their `type` matches, so
+the composer can wire organs by type with no hand-written adapters.
+
+| Direction | Port `name` | `type` | Notes |
+|---|---|---|---|
+| input  | `tenant`            | `TenantContext`  | optional; the `ai_*` override fields are an optional extension a `TenantContext` may carry. A plain `TenantContext` (no overrides) yields correct no-override behaviour. |
+| output | `ai_client_config` | `AIClientConfig` | the resolved client config (model/endpoint + buildability + provenance), secrets presence-only. |
+
+`ai_client_config` is an **additive** output key — it re-packages the existing
+resolved fields into the single composite the standard wires on; no existing
+output key changed. The scalar output keys (`model_id`, `base_url`, …) stay as
+they were but are not individually ported — the vocabulary has no scalar types
+by design.
+
+Two inputs are deliberately **not** ports: `app_config` (ambient process/env
+configuration — a config-knob bag, not an organ-to-organ wire) and
+`available_models` (an IO-fetched provider model catalogue — an edge/IO input
+the substrate's effect runner fulfils; no vocabulary type yet).
+
+### Vendored vocabulary + the proposed `AIClientConfig` type
+
+The orchestrator repo is private, so its `types.json` is **vendored** at the
+repo root and the conformance check validates against the local copy.
+`AIClientConfig` is **newly proposed** by this organ (no existing vocabulary
+type describes a resolved AI-client config) and is flagged `_status: PROPOSED`
+in the vendored copy — it should be reviewed into the canonical `types.json`
+upstream.
+
+The conformance Action (`ports_validate.py` + `test_ports.py`) asserts:
+`ports.json` parses; every declared `type` exists in the vocabulary; and
+`decide()` actually reads each declared input name under `state` and writes
+each declared output name under `output` (proven against the committed
+samples). A wrong type or an undeclared name fails the check.
