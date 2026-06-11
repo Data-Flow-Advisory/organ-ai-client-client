@@ -9,9 +9,13 @@ Covers:
   - Model display-name mapping
   - Model list filter + provider-ordered sort
   - Contract shape + fail-safe on malformed input
+  - Committed samples conform to pinned verdicts (catches verdict-flips)
 """
 
 import json
+import os
+
+import pytest
 
 from organ import (
     DEFAULT_BASE_URL,
@@ -20,6 +24,8 @@ from organ import (
     _model_display_name,
     decide,
 )
+
+SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "samples")
 
 
 class TestConfigPrecedence:
@@ -256,3 +262,93 @@ class TestContractShape:
             "available_models": [{"id": "anthropic/x", "name": "X"}],
         }
         assert decide(state) == decide(state)
+
+
+# Pinned expectations for each committed sample. The conformance Action only
+# shadow-runs samples and prints their output — it never asserts the verdict,
+# so a regression that flips a sample's decision would pass CI silently. These
+# assertions are the real gate: each sample is keyed to the verdict it must
+# produce.
+_SAMPLE_EXPECTATIONS = {
+    "app_config_openrouter.json": {
+        "model_id": "anthropic/claude-sonnet-4.6",
+        "model_source": "app",
+        "client_buildable": True,
+        "api_key_present": True,
+        "decision_path": "buildable",
+        "confidence": 1.0,
+        "tenant_overrides": 0,
+        "models_filtered": 0,
+        "models_is_none": True,
+    },
+    "app_default_no_key.json": {
+        "model_id": DEFAULT_MODEL,
+        "model_source": "default",
+        "client_buildable": False,
+        "api_key_present": False,
+        "decision_path": "missing_api_key",
+        "confidence": 0.5,
+        "tenant_overrides": 0,
+        "models_filtered": 0,
+        "models_is_none": True,
+    },
+    "tenant_override_with_models.json": {
+        "model_id": "anthropic/claude-opus-4.7",
+        "model_source": "tenant",
+        "client_buildable": True,
+        "api_key_present": True,
+        "decision_path": "buildable",
+        "confidence": 1.0,
+        "tenant_overrides": 3,
+        "models_filtered": 3,
+        "models_is_none": False,
+    },
+}
+
+
+class TestSamplesConform:
+    """Every committed sample must round-trip AND produce its pinned verdict."""
+
+    def test_all_samples_have_expectations(self):
+        on_disk = {f for f in os.listdir(SAMPLES_DIR) if f.endswith(".json")}
+        assert on_disk == set(_SAMPLE_EXPECTATIONS), (
+            "samples/ and _SAMPLE_EXPECTATIONS drifted; "
+            f"on_disk={sorted(on_disk)} pinned={sorted(_SAMPLE_EXPECTATIONS)}"
+        )
+
+    @pytest.mark.parametrize("name", sorted(_SAMPLE_EXPECTATIONS))
+    def test_sample_conforms(self, name):
+        with open(os.path.join(SAMPLES_DIR, name)) as fh:
+            payload = json.load(fh)
+        # Samples are stored as {"state": {...}} envelopes (what the
+        # conformance Action feeds to organ.py via ORGAN_INPUT).
+        assert "state" in payload, f"{name} missing 'state' envelope key"
+        res = decide(payload["state"], payload.get("context"))
+
+        # Contract shape holds for every sample.
+        assert set(res.keys()) == {"output", "rationale", "self_metric"}
+        out, sm = res["output"], res["self_metric"]
+        exp = _SAMPLE_EXPECTATIONS[name]
+
+        assert out["model_id"] == exp["model_id"]
+        assert out["config_source"]["model_id"] == exp["model_source"]
+        assert out["client_buildable"] is exp["client_buildable"]
+        assert out["api_key_present"] is exp["api_key_present"]
+        assert sm["decision_path"] == exp["decision_path"]
+        assert sm["confidence"] == exp["confidence"]
+        assert sm["tenant_overrides"] == exp["tenant_overrides"]
+        assert sm["models_filtered"] == exp["models_filtered"]
+        assert (out["models"] is None) is exp["models_is_none"]
+
+    def test_no_sample_echoes_a_secret(self):
+        # Defence-in-depth: no api_key value from any sample should ever
+        # appear in the rendered output.
+        for name in _SAMPLE_EXPECTATIONS:
+            with open(os.path.join(SAMPLES_DIR, name)) as fh:
+                payload = json.load(fh)
+            state = payload["state"]
+            blob = json.dumps(decide(state, payload.get("context")))
+            for src in (state.get("app_config") or {}, state.get("tenant") or {}):
+                for k, v in src.items():
+                    if "key" in k.lower() and isinstance(v, str) and v:
+                        assert v not in blob, f"{name} leaked secret {k}"
